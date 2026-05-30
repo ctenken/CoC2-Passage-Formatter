@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoC2 Passage Formatter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Dark mode is default */
+    --bg: #141210;
+    --surface: #1c1917;
+    --border: #2e2a26;
+    --border-strong: #3d3730;
+    --text: #f0ece6;
+    --text-muted: #8a8078;
+    --accent: #7ab89a;
+    --accent-hover: #96cdb4;
+    --accent-fg: #0d2018;
+    --danger: #e07070;
+    --danger-bg: #2a1515;
+    --danger-border: #4a2020;
+    --success: #7ab89a;
+    --success-bg: #0d2018;
+    --gutter-bg: #161412;
+    --gutter-text: #5a5450;
+    --error-bg: #2a1515;
+    --error-text: #e07070;
+    --error-border: #4a2020;
+    --radius: 6px;
+    --mono: 'DM Mono', 'Fira Mono', monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --line-height: 1.75;
+    --editor-font-size: clamp(0.8rem, 1vw, 1.05rem);
+    --editor-pad-v: 2vh;
+    --editor-pad-h: 2.5vw;
+  }
+
+  /* Light mode override via data-theme attribute */
+  [data-theme="light"] {
+    --bg: #f5f2ed;
+    --surface: #faf8f5;
+    --border: #d8d2c8;
+    --border-strong: #b8b0a2;
+    --text: #1c1917;
+    --text-muted: #6b6560;
+    --accent: #2d4a3e;
+    --accent-hover: #1e3329;
+    --accent-fg: #e8f0ec;
+    --danger: #7a2e2e;
+    --danger-bg: #fdf0f0;
+    --danger-border: #e8c0c0;
+    --success: #1e4d35;
+    --success-bg: #eef5f0;
+    --gutter-bg: #edeae4;
+    --gutter-text: #a09890;
+    --error-bg: #fdf0f0;
+    --error-text: #7a2e2e;
+    --error-border: #e8c0c0;
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── topbar ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2vw;
+    height: 6vh;
+    min-height: 36px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .topbar-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(1rem, 1.6vw, 1.4rem);
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 0.6vw;
+    align-items: center;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4vw;
+    padding: 0.5vh 1.1vw;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: clamp(0.65rem, 0.75vw, 0.85rem);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, transform 0.08s;
+    white-space: nowrap;
+  }
+  button:hover { background: var(--bg); border-color: var(--border-strong); }
+  button:active { transform: scale(0.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 500; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button svg { flex-shrink: 0; width: 1.1em; height: 1.1em; }
+
+  .char-count {
+    font-size: clamp(0.6rem, 0.7vw, 0.75rem);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    padding: 0 0.5vw;
+  }
+
+  /* ── editor container ── */
+  .editor-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    background: var(--surface);
+  }
+
+  /* ── gutter ── */
+  .gutter {
+    background: var(--gutter-bg);
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    width: 4.5vw;
+    min-width: 44px;
+  }
+
+  /* gutter-inner scrolls together with editor via JS margin-top */
+  .gutter-inner {
+    padding-top: var(--editor-pad-v);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  /* Each gutter row wraps a line-number + optional error. Error is absolutely
+     positioned so it never shifts sibling rows. */
+  .gutter-row {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .gutter-line {
+    font-family: var(--mono);
+    font-size: var(--editor-font-size);
+    color: var(--gutter-text);
+    text-align: right;
+    padding-right: 0.8vw;
+    user-select: none;
+    white-space: pre;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    height: 100%;
+    box-sizing: border-box;
+    padding-top: 0;
+    line-height: var(--line-height);
+  }
+
+  .gutter-error {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--error-bg);
+    border-top: 1px solid var(--error-border);
+    border-bottom: 1px solid var(--error-border);
+    color: var(--error-text);
+    font-family: var(--mono);
+    font-size: clamp(0.52rem, 0.6vw, 0.68rem);
+    padding: 0.2em 0.4em;
+    user-select: none;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* ── editor scroll area ── */
+  .editor-scroll {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+
+  /* editor-stack sized by JS to match content; textarea fills it via height:100% */
+  .editor-stack {
+    position: relative;
+  }
+
+  /* Hidden textarea holds the actual value; the styled pre is what users see */
+  textarea#editor {
+    /* Invisible text but visible caret — opacity must stay 1 for caret to render */
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    opacity: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    cursor: text;
+    z-index: 10;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent);
+    font-family: var(--mono);
+    font-size: var(--editor-font-size);
+    line-height: var(--line-height);
+    padding: var(--editor-pad-v) var(--editor-pad-h);
+    tab-size: 4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow: hidden;
+  }
+
+  /* Visible rendering layer — mirrors textarea content with syntax + wrapping */
+  #editorDisplay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    min-height: 100%;
+    pointer-events: none;
+    font-family: var(--mono);
+    font-size: var(--editor-font-size);
+    line-height: var(--line-height);
+    color: var(--text);
+    padding: var(--editor-pad-v) var(--editor-pad-h);
+    tab-size: 4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-sizing: border-box;
+    z-index: 1;
+  }
+
+  /* Each logical line in the display layer is an inline <span> + literal \n,
+     mirroring exactly the textarea's pre-wrap text flow */
+  #editorDisplay .eline {
+    display: inline;
+  }
+
+  #editorDisplay .eline.has-error {
+    background: color-mix(in srgb, var(--error-bg) 60%, transparent);
+    display: inline;
+  }
+
+  /* Bracket depth highlight colours — dark mode defaults */
+  :root {
+    --d1:  #7a6400;
+    --d2:  #1e5c18;
+    --d3:  #0e4f60;
+    --d4:  #6b2050;
+    --d5:  #6b3a00;
+    --d6:  #3d2878;
+    --d7:  #0e5038;
+    --d8:  #6b4400;
+    --d9:  #6b1a1a;
+    --d10: #3a5a10;
+    --d11: #1a3070;
+    --d12: #6b4010;
+    --d13: #3a5a00;
+    --d14: #6b2038;
+    --d15: #0e4848;
+    --d16: #4a2068;
+  }
+  /* Light mode depth colours */
+  [data-theme="light"] {
+    --d1:  #ffe066; /* yellow       */
+    --d2:  #a8f0a0; /* green        */
+    --d3:  #a0e8f8; /* cyan         */
+    --d4:  #ffb3de; /* pink         */
+    --d5:  #ffcc99; /* orange       */
+    --d6:  #c8b4f8; /* lavender     */
+    --d7:  #b4f0d8; /* mint         */
+    --d8:  #f8d4a0; /* peach        */
+    --d9:  #ff9e9e; /* coral        */
+    --d10: #d4f0a0; /* lime         */
+    --d11: #b0c8ff; /* periwinkle   */
+    --d12: #ffd6a0; /* apricot      */
+    --d13: #e0f8b0; /* yellow-green */
+    --d14: #f8b4c8; /* rose         */
+    --d15: #a8e8e8; /* teal         */
+    --d16: #e8c8f8; /* lilac        */
+  }
+
+  /* Depth spans hidden when highlighting is off */
+  body.no-highlight #editorDisplay span[class^="d"] { background: none; }
+
+  #editorDisplay span.d1  { background: var(--d1);  }
+  #editorDisplay span.d2  { background: var(--d2);  }
+  #editorDisplay span.d3  { background: var(--d3);  }
+  #editorDisplay span.d4  { background: var(--d4);  }
+  #editorDisplay span.d5  { background: var(--d5);  }
+  #editorDisplay span.d6  { background: var(--d6);  }
+  #editorDisplay span.d7  { background: var(--d7);  }
+  #editorDisplay span.d8  { background: var(--d8);  }
+  #editorDisplay span.d9  { background: var(--d9);  }
+  #editorDisplay span.d10 { background: var(--d10); }
+  #editorDisplay span.d11 { background: var(--d11); }
+  #editorDisplay span.d12 { background: var(--d12); }
+  #editorDisplay span.d13 { background: var(--d13); }
+  #editorDisplay span.d14 { background: var(--d14); }
+  #editorDisplay span.d15 { background: var(--d15); }
+  #editorDisplay span.d16 { background: var(--d16); }
+
+  /* Toggle button active state */
+  button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  /* ── statusbar ── */
+  .statusbar {
+    height: 4vh;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 2vw;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .status {
+    font-size: clamp(0.6rem, 0.7vw, 0.75rem);
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 0.03em;
+    transition: opacity 0.15s;
+  }
+  .status.show { opacity: 1; }
+  .status.ok  { color: var(--success); }
+  .status.err { color: var(--danger); }
+
+  @media (max-width: 600px) {
+    .topbar { padding: 0 3vw; height: 7vh; }
+    button { padding: 0.8vh 2.5vw; }
+    .toolbar { gap: 1.5vw; }
+    .gutter { width: 10vw; min-width: 36px; }
+  }
+
+  /* ── confirm dialog ── */
+  .confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .confirm-dialog {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: calc(var(--radius) * 1.5);
+    padding: 1.8rem 2rem;
+    min-width: 260px;
+    max-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .confirm-title {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .confirm-message {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: flex-end;
+    margin-top: 0.4rem;
+  }
+
+  .confirm-actions button {
+    font-size: 0.78rem;
+    padding: 0.45rem 1.1rem;
+  }
+
+  .danger-btn {
+    background: var(--danger) !important;
+    border-color: var(--danger) !important;
+    color: #fff !important;
+  }
+  .danger-btn:hover {
+    opacity: 0.88;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-title">CoC2 Passage Formatter</span>
+  <div class="toolbar">
+    <span class="char-count" id="wordCount">0 words</span>
+    <span class="char-count" id="charCount">0 chars</span>
+    <span class="char-count" id="bracketCount" title="Opening [ and closing ] bracket counts">[0 / ]0</span>
+    <button id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <svg id="themeIconMoon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="themeIconSun" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <span id="themeLabel">Light</span>
+    </button>
+    <button id="highlightToggle" class="active" onclick="toggleHighlight()" title="Toggle bracket depth highlighting">
+      <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Highlight
+    </button>
+    <button class="primary" onclick="runFormat()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
+      Format
+    </button>
+    <button onclick="copyText()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy
+    </button>
+    <button onclick="clearAll()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Clear
+    </button>
+  </div>
+</div>
+
+<div class="editor-container" id="editorContainer">
+  <div class="gutter" id="gutter">
+    <div class="gutter-inner" id="gutterInner"></div>
+  </div>
+  <div class="editor-scroll" id="editorScroll">
+    <div class="editor-stack" id="editorStack">
+      <div id="editorDisplay" aria-hidden="true"></div>
+      <textarea id="editor" spellcheck="false" placeholder="Paste your text here and click Format." autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+</div>
+
+<script src="formatTextify-app.js"></script>
+</body>
+</html>
