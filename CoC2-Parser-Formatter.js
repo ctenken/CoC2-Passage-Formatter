@@ -1,19 +1,19 @@
 import {
-  EditorState,
-} from './dist/cm6-bundle.js';
-import {
-  EditorView, ViewPlugin, Decoration,
-  lineNumbers, highlightActiveLine, highlightActiveLineGutter,
-  drawSelection, keymap, placeholder,
-} from './dist/cm6-bundle.js';
-import {
-  history, defaultKeymap, historyKeymap, indentWithTab
-} from './dist/cm6-bundle.js';
-import {
   indentUnit as codeMirrorIndentUnit,
-} from './dist/cm6-bundle.js';
-import {
-  lintGutter, setDiagnostics
+  Decoration,
+  defaultKeymap,
+  drawSelection,
+  EditorState,
+  EditorView,
+  highlightActiveLine, highlightActiveLineGutter,
+  history,
+  historyKeymap, indentWithTab,
+  keymap,
+  lineNumbers,
+  lintGutter,
+  placeholder,
+  setDiagnostics,
+  ViewPlugin,
 } from './dist/cm6-bundle.js';
 
 // ─── Formatter core (unchanged) ───────────────────────────────────────────────
@@ -402,7 +402,7 @@ function showStatus(msg, type) {
     statusEl.className = 'status show ' + type;
   });
   clearTimeout(showStatus._timer);
-  showStatus._timer = setTimeout(() => { statusEl.className = 'status'; }, 4000);
+  showStatus._timer = setTimeout(() => { statusEl.className = 'status'; }, 10000);
 }
 
 // ─── Diagnostics ──────────────────────────────────────────────────────────────
