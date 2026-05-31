@@ -1,0 +1,19 @@
+{
+  "name": "codex-format-passage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:codemirror": "esbuild src/codemirror-bundle.js --bundle --format=esm --target=es2020 --minify --outfile=dist/cm6-bundle.js",
+    "build": "npm run build:codemirror"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lint": "^6.8.5",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  }
+}
