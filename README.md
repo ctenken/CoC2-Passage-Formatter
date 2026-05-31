@@ -1,4 +1,4 @@
-# Format Textify
+# CoC2 Parser Formatter
 
 This project builds its local CodeMirror browser bundle from npm packages.
 
@@ -9,6 +9,6 @@ npm install
 npm run build
 ```
 
-The build writes `dist/cm6-bundle.js`, which is imported by `CoC2-Passage-Formatter.js`.
+The build writes `dist/cm6-bundle.js`, which is imported by `CoC2-Parser-Formatter.js`.
 
 Open `index.html` in a browser after building.
