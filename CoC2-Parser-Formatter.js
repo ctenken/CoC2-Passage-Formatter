@@ -462,6 +462,27 @@ window.clearAll = function () {
 
 let isDark = true;
 let highlightOn = true;
+let editorFontSize = 16;
+
+function normalizeFontSize(size) {
+  const parsed = Number.parseInt(String(size || '').replace('px', ''), 10);
+  if (!Number.isFinite(parsed)) return 16;
+  return Math.max(1, Math.min(100, parsed));
+}
+
+function refreshEditorLayout() {
+  view.requestMeasure();
+  view.dispatch({});
+  requestAnimationFrame(() => view.requestMeasure());
+}
+
+function applyFontSize(size) {
+  editorFontSize = normalizeFontSize(size);
+  document.documentElement.style.setProperty('--editor-font-size', `${editorFontSize}px`);
+  const input = document.getElementById('fontSizeInput');
+  if (input) input.value = editorFontSize;
+  refreshEditorLayout();
+}
 
 window.toggleTheme = function () {
   isDark = !isDark;
@@ -472,6 +493,26 @@ window.toggleTheme = function () {
   if (isDark) { moon.style.display = ''; sun.style.display = 'none'; lbl.textContent = 'Light'; }
   else        { moon.style.display = 'none'; sun.style.display = ''; lbl.textContent = 'Dark'; }
   saveState();
+};
+
+window.setFontSize = function (size) {
+  applyFontSize(size);
+  saveState();
+};
+
+window.adjustFontSize = function (amount) {
+  applyFontSize(editorFontSize + amount);
+  saveState();
+};
+
+window.commitFontSizeInput = function (event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    window.setFontSize(event.currentTarget.value);
+    view.focus();
+  } else if (event.key === 'Escape') {
+    event.currentTarget.value = editorFontSize;
+  }
 };
 
 window.toggleHighlight = function () {
@@ -524,6 +565,7 @@ function saveState() {
     localStorage.setItem('fmtTextify_theme', isDark ? 'dark' : 'light');
     localStorage.setItem('fmtTextify_indent', indentUnit === '\t' ? 'tab' : indentUnit === '    ' ? 'spaces' : 'none');
     localStorage.setItem('fmtTextify_highlight', highlightOn ? 'on' : 'off');
+    localStorage.setItem('fmtTextify_fontSize', `${editorFontSize}px`);
   } catch (_) {}
 }
 
@@ -540,6 +582,7 @@ function loadState() {
     const savedIndent = localStorage.getItem('fmtTextify_indent');
     indentUnit = savedIndent === 'spaces' ? '    ' : savedIndent === 'none' ? '' : '\t';
     updateIndentToggle();
+    applyFontSize(localStorage.getItem('fmtTextify_fontSize'));
     const savedHighlight = localStorage.getItem('fmtTextify_highlight');
     highlightOn = savedHighlight !== 'off';
     document.body.classList.toggle('no-highlight', !highlightOn);

@@ -102,6 +102,47 @@
   .toolbar::-webkit-scrollbar { display: none; }
   .toolbar-counts { display: flex; gap: 0.6vw; align-items: center; }
   .toolbar-buttons { display: contents; }
+  .toolbar-field {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35vw;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: clamp(0.65rem, 0.75vw, 0.85rem);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .font-size-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .toolbar-field input {
+    width: 3.4rem;
+    height: 1.9rem;
+    padding: 0.5vh 0.55rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: inherit;
+    letter-spacing: 0;
+    text-align: center;
+  }
+  .toolbar-field input:hover,
+  .toolbar-field input:focus {
+    border-color: var(--border-strong);
+    outline: none;
+  }
+  .font-size-step {
+    width: 1.8rem;
+    height: 1.9rem;
+    justify-content: center;
+    padding-inline: 0;
+    font-size: clamp(0.8rem, 0.9vw, 1rem);
+  }
 
   button {
     display: inline-flex;
@@ -343,6 +384,10 @@
     .toolbar-counts { display: flex; gap: 1.5vw; margin-left: auto; align-items: center; }
     .toolbar-buttons { display: flex; width: 100%; gap: 1.5vw; padding-bottom: 0.4vh; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
     .toolbar-buttons::-webkit-scrollbar { display: none; }
+    .toolbar-field { flex-shrink: 0; font-size: clamp(0.6rem, 2.4vw, 0.78rem); }
+    .font-size-control { gap: 0.35rem; }
+    .toolbar-field input { width: 3.4rem; padding: 0.6vh 0.45rem; }
+    .font-size-step { width: 1.8rem; padding-inline: 0; }
     button { padding: 0.6vh 2vw; font-size: clamp(0.6rem, 2.4vw, 0.78rem); flex-shrink: 0; }
     .char-count { flex-shrink: 0; font-size: clamp(0.72rem, 2.8vw, 0.9rem); padding: 0; }
     .cm-lineNumbers .cm-gutterElement {
@@ -376,6 +421,13 @@
         <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M4 12h14"/><path d="M4 17h10"/><path d="M17 7l3 5-3 5"/></svg>
         <span id="indentLabel">Spaces</span>
       </button>
+      <div class="toolbar-field" title="Editor font size">
+        <span class="font-size-control">
+          <button class="font-size-step" type="button" onclick="adjustFontSize(-1)" title="Decrease editor font size" aria-label="Decrease editor font size">-</button>
+          <input id="fontSizeInput" type="text" inputmode="numeric" pattern="[0-9]*" onchange="setFontSize(this.value)" onkeydown="commitFontSizeInput(event)" aria-label="Editor font size">
+          <button class="font-size-step" type="button" onclick="adjustFontSize(1)" title="Increase editor font size" aria-label="Increase editor font size">+</button>
+        </span>
+      </div>
       <button class="primary" onclick="runFormat()">
         <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
         Format
