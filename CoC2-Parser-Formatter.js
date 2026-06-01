@@ -19,7 +19,23 @@ import {
 // ─── Formatter core (unchanged) ───────────────────────────────────────────────
 
 let indentUnit = '\t';
+let curlyFormatOn = true;
 function isWhitespace(ch) { return ch === ' ' || ch === '\t' || ch === '\r'; }
+
+const squarePair = { open: '[', close: ']' };
+const curlyPair = { open: '{', close: '}' };
+
+function enabledPairs() {
+  return curlyFormatOn ? [squarePair, curlyPair] : [squarePair];
+}
+
+function openingPair(ch) {
+  return enabledPairs().find(pair => pair.open === ch);
+}
+
+function closingPair(ch) {
+  return enabledPairs().find(pair => pair.close === ch);
+}
 
 function formatTextify(inner, baseIndent, startLine) {
   let result = '', i = 0, line = startLine, atLineStart = false;
@@ -33,45 +49,46 @@ function formatTextify(inner, baseIndent, startLine) {
       result += baseIndent;
       continue;
     }
-    if (ch === '[') {
-      const { formatted, endIndex, line: newLine } = processBracket(inner, i, baseIndent, line);
+    const pair = openingPair(ch);
+    if (pair) {
+      const { formatted, endIndex, line: newLine } = processBracket(inner, i, baseIndent, line, pair);
       result += formatted; i = endIndex + 1; line = newLine;
-    } else if (ch === ']') {
-      throw new Error(`Unmatched ']' at line ${line}`);
+    } else if (closingPair(ch)) {
+      throw new Error(`Unmatched '${ch}' at line ${line}`);
     } else { result += ch; i++; }
   }
   return { result, line };
 }
 
-function processBracket(str, startIndex, bracketIndent, startLine) {
+function processBracket(str, startIndex, bracketIndent, startLine, pair) {
   const openLine = startLine;
   let i = startIndex + 1, depth = 1, content = '', line = startLine;
   while (i < str.length && depth > 0) {
     const ch = str[i];
-    if (ch === '[') depth++;
-    else if (ch === ']') depth--;
+    if (ch === pair.open) depth++;
+    else if (ch === pair.close) depth--;
     if (depth > 0) { content += ch; if (ch === '\n') line++; }
     else if (ch === '\n') line++;
     i++;
   }
-  if (depth !== 0) throw new Error(`Unmatched '[' at line ${openLine}`);
+  if (depth !== 0) throw new Error(`Unmatched '${pair.open}' at line ${openLine}`);
   const endIndex = i - 1;
   if (!hasTopLevelPipe(content)) {
     const { result: inner, line: newLine } = formatChoiceContent(content, bracketIndent, openLine);
-    return { formatted: '[' + inner + ']', endIndex, line: newLine };
+    return { formatted: pair.open + inner + pair.close, endIndex, line: newLine };
   }
   const parts = splitOnTopLevelPipes(content);
   const qualifier = parts[0].trim();
   const choices = parts.slice(1);
   const innerIndent = bracketIndent + indentUnit;
-  let formatted = '[' + qualifier + '\n';
+  let formatted = pair.open + qualifier + '\n';
   let choiceLine = openLine;
   for (const choice of choices) {
     const { result: body, line: afterLine } = formatChoiceContent(choice, innerIndent, choiceLine);
     choiceLine = afterLine;
     formatted += innerIndent + '|' + body.replace(/[\r\n]+$/, '') + '\n';
   }
-  formatted += bracketIndent + ']';
+  formatted += bracketIndent + pair.close;
   return { formatted, endIndex, line };
 }
 
@@ -87,32 +104,37 @@ function formatChoiceContent(content, knownIndent, startLine) {
       result += knownIndent;
       continue;
     }
-    if (ch === '[') {
-      const { formatted, endIndex, line: newLine } = processBracket(content, i, knownIndent, line);
+    const pair = openingPair(ch);
+    if (pair) {
+      const { formatted, endIndex, line: newLine } = processBracket(content, i, knownIndent, line, pair);
       result += formatted; i = endIndex + 1; line = newLine;
-    } else if (ch === ']') {
-      throw new Error(`Unmatched ']' at line ${line}`);
+    } else if (closingPair(ch)) {
+      throw new Error(`Unmatched '${ch}' at line ${line}`);
     } else { result += ch; i++; }
   }
   return { result, line };
 }
 
 function hasTopLevelPipe(str) {
-  let depth = 0;
+  const stack = [];
   for (const ch of str) {
-    if (ch === '[') depth++;
-    else if (ch === ']') depth--;
-    else if (ch === '|' && depth === 0) return true;
+    const opener = openingPair(ch);
+    const closer = closingPair(ch);
+    if (opener) stack.push(opener.close);
+    else if (closer && stack[stack.length - 1] === ch) stack.pop();
+    else if (ch === '|' && stack.length === 0) return true;
   }
   return false;
 }
 
 function splitOnTopLevelPipes(str) {
-  const parts = []; let depth = 0, current = '';
+  const parts = []; const stack = []; let current = '';
   for (const ch of str) {
-    if (ch === '[') { depth++; current += ch; }
-    else if (ch === ']') { depth--; current += ch; }
-    else if (ch === '|' && depth === 0) { parts.push(current); current = ''; }
+    const opener = openingPair(ch);
+    const closer = closingPair(ch);
+    if (opener) { stack.push(opener.close); current += ch; }
+    else if (closer && stack[stack.length - 1] === ch) { stack.pop(); current += ch; }
+    else if (ch === '|' && stack.length === 0) { parts.push(current); current = ''; }
     else current += ch;
   }
   parts.push(current);
@@ -178,7 +200,7 @@ function processContent(content) {
 
 function buildDepthDecorations(doc) {
   const marks = [];
-  let depth = 0;
+  const stack = [];
   let runStart = 0, runDepth = 0;
 
   function flush(end) {
@@ -190,16 +212,18 @@ function buildDepthDecorations(doc) {
   const text = doc.toString();
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === '[') {
+    const opener = openingPair(ch);
+    const closer = closingPair(ch);
+    if (opener) {
       flush(i);
-      depth++;
-      marks.push(Decoration.mark({ class: `bd${Math.min(depth, 16)}` }).range(i, i + 1));
-      runStart = i + 1; runDepth = depth;
-    } else if (ch === ']') {
+      stack.push(opener.close);
+      marks.push(Decoration.mark({ class: `bd${Math.min(stack.length, 16)}` }).range(i, i + 1));
+      runStart = i + 1; runDepth = stack.length;
+    } else if (closer) {
       flush(i);
-      marks.push(Decoration.mark({ class: `bd${Math.min(depth, 16)}` }).range(i, i + 1));
-      depth = Math.max(0, depth - 1);
-      runStart = i + 1; runDepth = depth;
+      marks.push(Decoration.mark({ class: `bd${Math.min(stack.length, 16)}` }).range(i, i + 1));
+      if (stack[stack.length - 1] === ch) stack.pop();
+      runStart = i + 1; runDepth = stack.length;
     } else if (ch === '\n') {
       flush(i);
       runStart = i + 1;
@@ -213,12 +237,14 @@ function buildDepthDecorations(doc) {
 const depthPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
     this.highlightOn = !document.body.classList.contains('no-highlight');
+    this.curlyFormatOn = curlyFormatOn;
     this.decorations = this._build(view);
   }
   update(update) {
     const highlightOn = !document.body.classList.contains('no-highlight');
-    if (update.docChanged || update.viewportChanged || highlightOn !== this.highlightOn) {
+    if (update.docChanged || update.viewportChanged || highlightOn !== this.highlightOn || curlyFormatOn !== this.curlyFormatOn) {
       this.highlightOn = highlightOn;
+      this.curlyFormatOn = curlyFormatOn;
       this.decorations = this._build(update.view);
     }
   }
@@ -377,6 +403,7 @@ const view = new EditorView({
 const wordCountEl    = document.getElementById('wordCount');
 const charCountEl    = document.getElementById('charCount');
 const bracketCountEl = document.getElementById('bracketCount');
+const curlyCountEl   = document.getElementById('curlyCount');
 const bracketWarnEl  = document.getElementById('bracketWarn');
 
 function updateCounts(text) {
@@ -385,10 +412,21 @@ function updateCounts(text) {
   const n = text.length;
   charCountEl.textContent = n.toLocaleString() + ' char' + (n === 1 ? '' : 's');
   let open = 0, close = 0;
-  for (const ch of text) { if (ch === '[') open++; else if (ch === ']') close++; }
-  const balanced = open === close;
+  let curlyOpen = 0, curlyClose = 0;
+  for (const ch of text) {
+    if (ch === '[') open++;
+    else if (ch === ']') close++;
+    else if (ch === '{') curlyOpen++;
+    else if (ch === '}') curlyClose++;
+  }
+  const squareBalanced = open === close;
+  const curlyBalanced = curlyOpen === curlyClose;
+  const balanced = squareBalanced && (!curlyFormatOn || curlyBalanced);
   bracketCountEl.textContent = '[' + open + ' / ]' + close;
-  bracketCountEl.style.color = balanced || text.trim() === '' ? '' : 'var(--danger)';
+  bracketCountEl.style.color = squareBalanced || text.trim() === '' ? '' : 'var(--danger)';
+  curlyCountEl.textContent = '{' + curlyOpen + ' / }' + curlyClose;
+  curlyCountEl.style.display = curlyFormatOn ? '' : 'none';
+  curlyCountEl.style.color = curlyBalanced || text.trim() === '' ? '' : 'var(--danger)';
   bracketWarnEl.style.display = (!balanced && text.trim() !== '') ? '' : 'none';
 }
 
@@ -421,6 +459,12 @@ function clearErrors() {
   view.dispatch(setDiagnostics(view.state, []));
 }
 
+function errorLineSummary(errors) {
+  const lines = [...new Set(errors.map(err => err.line).filter(Number.isFinite))].sort((a, b) => a - b);
+  if (lines.length === 0) return '';
+  return lines.length === 1 ? ` on line ${lines[0]}` : ` on lines ${lines.join(', ')}`;
+}
+
 // ─── Toolbar actions (exposed to window for onclick= attributes) ───────────────
 
 window.runFormat = function () {
@@ -429,7 +473,7 @@ window.runFormat = function () {
   const { result, errors } = processContent(text);
   if (errors.length > 0) {
     applyErrors(errors);
-    showStatus(`${errors.length} error${errors.length > 1 ? 's' : ''} found — see annotations.`, 'err');
+    showStatus(`${errors.length} error${errors.length > 1 ? 's' : ''} found${errorLineSummary(errors)} — see annotations.`, 'err');
     return;
   }
   clearErrors();
@@ -492,6 +536,18 @@ window.toggleTheme = function () {
   const lbl  = document.getElementById('themeLabel');
   if (isDark) { moon.style.display = ''; sun.style.display = 'none'; lbl.textContent = 'Light'; }
   else        { moon.style.display = 'none'; sun.style.display = ''; lbl.textContent = 'Dark'; }
+  saveState();
+};
+
+function updateCurlyToggle() {
+  document.getElementById('curlyToggle').classList.toggle('active', curlyFormatOn);
+  updateCounts(view.state.doc.toString());
+  view.dispatch({});
+}
+
+window.toggleCurlyFormatting = function () {
+  curlyFormatOn = !curlyFormatOn;
+  updateCurlyToggle();
   saveState();
 };
 
@@ -565,6 +621,7 @@ function saveState() {
     localStorage.setItem('fmtTextify_theme', isDark ? 'dark' : 'light');
     localStorage.setItem('fmtTextify_indent', indentUnit === '\t' ? 'tab' : indentUnit === '    ' ? 'spaces' : 'none');
     localStorage.setItem('fmtTextify_highlight', highlightOn ? 'on' : 'off');
+    localStorage.setItem('fmtTextify_curlyFormat', curlyFormatOn ? 'on' : 'off');
     localStorage.setItem('fmtTextify_fontSize', `${editorFontSize}px`);
   } catch (_) {}
 }
@@ -583,6 +640,9 @@ function loadState() {
     indentUnit = savedIndent === 'spaces' ? '    ' : savedIndent === 'none' ? '' : '\t';
     updateIndentToggle();
     applyFontSize(localStorage.getItem('fmtTextify_fontSize'));
+    const savedCurlyFormat = localStorage.getItem('fmtTextify_curlyFormat');
+    curlyFormatOn = savedCurlyFormat !== 'off';
+    updateCurlyToggle();
     const savedHighlight = localStorage.getItem('fmtTextify_highlight');
     highlightOn = savedHighlight !== 'off';
     document.body.classList.toggle('no-highlight', !highlightOn);
