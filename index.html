@@ -106,18 +106,23 @@
 
   /* ── topbar ── */
   .topbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "title counts"
+      "toolbar toolbar";
     align-items: center;
-    justify-content: space-between;
-    padding: 0 2vw;
-    height: 6vh;
+    padding: 0.45rem 2vw;
+    height: auto;
     min-height: 36px;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     flex-shrink: 0;
     gap: 0.5rem;
+    row-gap: 0.35rem;
   }
   .topbar-title {
+    grid-area: title;
     font-family: var(--serif);
     font-weight: 300;
     font-size: clamp(1rem, 1.6vw, 1.4rem);
@@ -125,17 +130,38 @@
     flex-shrink: 0;
   }
   .toolbar {
+    grid-area: toolbar;
     display: flex;
     gap: 0.6vw;
     align-items: center;
+    justify-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+    min-width: 0;
+  }
+  .toolbar-counts {
+    grid-area: counts;
+    display: flex;
+    gap: 0.6vw;
+    align-items: center;
+    flex-wrap: nowrap;
+    justify-self: end;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    min-width: 0;
+    white-space: nowrap;
   }
-  .toolbar::-webkit-scrollbar { display: none; }
-  .toolbar-counts { display: flex; gap: 0.6vw; align-items: center; }
-  .toolbar-buttons { display: contents; }
+  .toolbar-counts::-webkit-scrollbar { display: none; }
+  .toolbar-buttons {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6vw;
+    width: 100%;
+  }
   .toolbar-field {
     position: relative;
     display: inline-flex;
@@ -202,12 +228,35 @@
   button svg { flex-shrink: 0; width: 1.1em; height: 1.1em; }
 
   .char-count {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
     font-size: clamp(0.9rem, 1.1vw, 1.15rem);
+    line-height: 1;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     padding: 0 0.5vw;
+    white-space: nowrap;
   }
   .bracket-warn { color: var(--danger) !important; font-style: italic; }
+
+  @media (max-width: 1000px) {
+    .topbar {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "title"
+        "counts"
+        "toolbar";
+    }
+    .topbar-title,
+    .toolbar-counts {
+      justify-self: start;
+    }
+    .toolbar-counts {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
 
   /* ── editor area ── */
   .editor-wrap {
@@ -413,17 +462,21 @@
 
   /* ── narrow / portrait ── */
   @media (max-width: 600px), (orientation: portrait) and (max-width: 900px) {
-    .topbar { flex-wrap: wrap; height: auto; min-height: unset; padding: 0.5vh 3vw; gap: 0; row-gap: 0.15rem; }
+    .topbar {
+      padding: 0.5vh 3vw;
+      gap: 0;
+      row-gap: 0.15rem;
+    }
     .topbar-title { flex-shrink: 0; font-size: clamp(0.9rem, 3.5vw, 1.2rem); padding-top: 0.2vh; }
-    .toolbar-counts { display: flex; gap: 1.5vw; margin-left: auto; align-items: center; }
-    .toolbar-buttons { display: flex; width: 100%; gap: 1.5vw; padding-bottom: 0.4vh; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-    .toolbar-buttons::-webkit-scrollbar { display: none; }
+    .toolbar-counts { display: flex; gap: 1.5vw; margin-left: 0; align-items: center; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
+    .toolbar { grid-area: toolbar; justify-self: stretch; width: 100%; max-width: 100%; padding-bottom: 0.4vh; overflow: visible; }
+    .toolbar-buttons { display: flex; flex-wrap: wrap; width: 100%; gap: 1.5vw; }
     .toolbar-field { flex-shrink: 0; font-size: clamp(0.6rem, 2.4vw, 0.78rem); }
     .font-size-control { gap: 0.35rem; }
     .toolbar-field input { width: 3.4rem; padding: 0.6vh 0.45rem; }
     .font-size-step { width: 1.8rem; padding-inline: 0; }
     button { padding: 0.6vh 2vw; font-size: clamp(0.6rem, 2.4vw, 0.78rem); flex-shrink: 0; }
-    .char-count { flex-shrink: 0; font-size: clamp(0.72rem, 2.8vw, 0.9rem); padding: 0; }
+    .char-count { flex-shrink: 0; font-size: clamp(0.72rem, 2.8vw, 0.9rem); line-height: 1; padding: 0; white-space: nowrap; }
     .cm-lineNumbers .cm-gutterElement {
       padding-right: 0.12rem !important;
     }
