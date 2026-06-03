@@ -1,10 +1,14 @@
 import {
+  closeSearchPanel,
   indentUnit as codeMirrorIndentUnit,
   Decoration,
   defaultKeymap,
   drawSelection,
   EditorState,
   EditorView,
+  findNext,
+  findPrevious,
+  getSearchQuery,
   highlightActiveLine, highlightActiveLineGutter,
   history,
   historyKeymap, indentWithTab,
@@ -12,7 +16,12 @@ import {
   lineNumbers,
   lintGutter,
   placeholder,
+  replaceAll,
+  replaceNext,
+  search,
+  SearchQuery,
   setDiagnostics,
+  setSearchQuery,
   ViewPlugin,
 } from './dist/cm6-bundle.js';
 
@@ -494,6 +503,34 @@ const selectedTextPlugin = ViewPlugin.fromClass(class {
   }
 }, { decorations: v => v.decorations });
 
+// ─── Search match highlight plugin ───────────────────────────────────────────
+
+const searchMatchDeco = Decoration.mark({ class: 'cm-search-match-all', inclusive: false });
+
+const searchMatchPlugin = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = this._build(view); }
+  update(update) {
+    if (update.docChanged || update.selectionSet || update.transactions.some(tr => tr.effects.length))
+      this.decorations = this._build(update.view);
+  }
+  _build(view) {
+    const query = getSearchQuery(view.state);
+    if (!query.search) return Decoration.none;
+    const sel = view.state.selection.main;
+    const marks = [];
+    try {
+      const cursor = query.getCursor(view.state);
+      while (!cursor.next().done) {
+        const { from, to } = cursor.value;
+        // Skip the currently selected match so the selection highlight shows through
+        if (from === sel.from && to === sel.to) continue;
+        marks.push(searchMatchDeco.range(from, to));
+      }
+    } catch (_) { return Decoration.none; }
+    return Decoration.set(marks, true);
+  }
+}, { decorations: v => v.decorations });
+
 // ─── Build the editor ─────────────────────────────────────────────────────────
 
 const host = document.getElementById('cm-host');
@@ -510,11 +547,13 @@ const view = new EditorView({
     lintGutter(),
     codeMirrorIndentUnit.of('    '),
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+    search({ createPanel: () => ({ dom: document.createElement('div'), mount() {}, destroy() {} }) }),
     placeholder('Paste your text here and click Format.'),
     wrapIndentPlugin,
     indentGuidePlugin,
     depthPlugin,
     selectedTextPlugin,
+    searchMatchPlugin,
     EditorView.updateListener.of(update => {
       if (update.docChanged) {
         updateCounts(update.state.doc.toString());
@@ -800,6 +839,219 @@ function loadState() {
     }
   } catch (_) { updateCounts(''); }
 }
+
+// ─── Search Panel ─────────────────────────────────────────────────────────────
+
+let searchPanelOpen = false;
+let searchReplaceVisible = false;
+
+const searchPanel  = document.getElementById('searchPanel');
+const searchInput  = document.getElementById('searchInput');
+const replaceInput = document.getElementById('replaceInput');
+const searchCount  = document.getElementById('searchCount');
+const searchReplaceRow = document.getElementById('searchReplaceRow');
+const searchToggleReplace = document.getElementById('searchToggleReplace');
+
+function updateSearchCount() {
+  const query = getSearchQuery(view.state);
+  if (!query.search) {
+    searchCount.textContent = '0/0';
+    searchCount.classList.add('zero');
+    return;
+  }
+  let total = 0;
+  let cursor = query.getCursor(view.state);
+  while (!cursor.next().done) {
+    total++;
+  }
+  // Find current match index
+  let current = 0;
+  const sel = view.state.selection.main;
+  if (!sel.empty) {
+    let idx = 0;
+    cursor = query.getCursor(view.state);
+    while (!cursor.next().done) {
+      idx++;
+      // @ts-ignore - cursor.value has from/to
+      const { from, to } = cursor.value;
+      if (from <= sel.from && to >= sel.to) { current = idx; break; }
+    }
+  }
+  if (total === 0) {
+    searchCount.textContent = '0/0';
+    searchCount.classList.add('zero');
+  } else if (current === 0) {
+    searchCount.textContent = `/${total}`;
+    searchCount.classList.remove('zero');
+  } else {
+    searchCount.textContent = `${current}/${total}`;
+    searchCount.classList.remove('zero');
+  }
+}
+
+let searchCaseSensitive = false;
+let searchUseRegex = false;
+
+window.toggleSearchCase = function () {
+  searchCaseSensitive = !searchCaseSensitive;
+  document.getElementById('searchCaseBtn').classList.toggle('active', searchCaseSensitive);
+  applySearchQuery(true);
+};
+
+window.toggleSearchRegex = function () {
+  searchUseRegex = !searchUseRegex;
+  document.getElementById('searchRegexBtn').classList.toggle('active', searchUseRegex);
+  applySearchQuery(true);
+};
+
+
+
+function applySearchQuery(preservePos = false) {
+  const searchTerm = searchInput.value;
+  const replaceTerm = replaceInput.value;
+  let query;
+  try {
+    query = new SearchQuery({
+      search: searchTerm,
+      replace: replaceTerm,
+      caseSensitive: searchCaseSensitive,
+      regexp: searchUseRegex,
+      wholeWord: false,
+    });
+  } catch (e) {
+    updateSearchCount();
+    return;
+  }
+  view.dispatch({ effects: setSearchQuery.of(query) });
+  if (searchTerm && !preservePos) {
+    findNext(view);
+  }
+  updateSearchCount();
+}
+
+window.toggleSearch = function () {
+  if (searchPanelOpen) {
+    closeSearch();
+    return;
+  }
+  searchPanel.style.display = 'flex';
+  searchPanelOpen = true;
+  document.getElementById('searchToggle').classList.add('active');
+  searchInput.focus();
+  searchInput.select();
+  applySearchQuery();
+};
+
+window.closeSearch = function () {
+  searchPanel.style.display = 'none';
+  searchPanelOpen = false;
+  document.getElementById('searchToggle').classList.remove('active');
+  view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+  closeSearchPanel(view);
+};
+
+window.toggleSearchReplace = function () {
+  searchReplaceVisible = !searchReplaceVisible;
+  searchReplaceRow.classList.toggle('visible', searchReplaceVisible);
+  const icon = document.getElementById('searchToggleReplaceIcon');
+  if (searchReplaceVisible) {
+    searchToggleReplace.classList.add('active');
+    if (icon) icon.innerHTML = '&#8897;';
+    setTimeout(() => replaceInput.focus(), 0);
+  } else {
+    searchToggleReplace.classList.remove('active');
+    if (icon) icon.innerHTML = '&#x276F;';
+  }
+};
+
+window.applySearchQuery = applySearchQuery;
+
+window.onSearchInput = function () {
+  applySearchQuery();
+};
+
+window.onSearchKeyDown = function (e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (e.shiftKey) { findPrevious(view); }
+    else { findNext(view); }
+    updateSearchCount();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSearch();
+  } else if (e.key === 'Tab' && searchReplaceVisible) {
+    e.preventDefault();
+    replaceInput.focus();
+  }
+};
+
+window.onReplaceKeyDown = function (e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    replaceOne();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSearch();
+  }
+};
+
+window.searchNext = function () {
+  findNext(view);
+  updateSearchCount();
+};
+
+window.searchPrev = function () {
+  findPrevious(view);
+  updateSearchCount();
+};
+
+window.replaceOne = function () {
+  applySearchQuery(true);
+  replaceNext(view);
+  findNext(view);
+  updateSearchCount();
+};
+
+window.replaceAll = function () {
+  applySearchQuery(true);
+  replaceAll(view);
+  updateSearchCount();
+};
+
+// Keyboard shortcuts: Ctrl+F, Ctrl+H, F3, Shift+F3
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault();
+    if (searchPanelOpen) {
+      searchInput.focus();
+      searchInput.select();
+    } else {
+      toggleSearch();
+    }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+    e.preventDefault();
+    if (!searchPanelOpen) {
+      toggleSearch();
+      toggleSearchReplace();
+    } else if (!searchReplaceVisible) {
+      toggleSearchReplace();
+    } else {
+      replaceInput.focus();
+    }
+  } else if (e.key === 'F3') {
+    e.preventDefault();
+    if (!searchPanelOpen) toggleSearch();
+    if (e.shiftKey) { findPrevious(view); searchPrev(); }
+    else { findNext(view); searchNext(); }
+    updateSearchCount();
+  } else if (e.altKey && e.key === 'c' && searchPanelOpen) {
+    e.preventDefault();
+    toggleSearchCase();
+  } else if (e.altKey && e.key === 'r' && searchPanelOpen) {
+    e.preventDefault();
+    toggleSearchRegex();
+  }
+});
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 

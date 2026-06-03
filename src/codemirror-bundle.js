@@ -27,3 +27,18 @@ export {
   lintGutter,
   setDiagnostics,
 } from '@codemirror/lint';
+
+export {
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  getSearchQuery,
+  openSearchPanel,
+  replaceAll,
+  replaceNext,
+  SearchQuery,
+  search,
+  searchKeymap,
+  selectMatches,
+  setSearchQuery,
+} from '@codemirror/search';
