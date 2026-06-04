@@ -548,6 +548,41 @@ const searchMatchPlugin = ViewPlugin.fromClass(class {
   }
 }, { decorations: v => v.decorations });
 
+let trailingSpacesOn = false;
+
+const trailingSpacePlugin = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = this._build(view); }
+  update(update) {
+    if (update.docChanged || update.viewportChanged || trailingSpacesOn !== this._lastOn)
+      this.decorations = this._build(update.view);
+  }
+  _build(view) {
+    this._lastOn = trailingSpacesOn;
+    if (!trailingSpacesOn) return Decoration.none;
+    const marks = [];
+    for (const { from, to } of view.visibleRanges) {
+      for (let pos = from; pos <= to;) {
+        const line = view.state.doc.lineAt(pos);
+        const text = line.text;
+        const match = text.match(/[ \t]+$/);
+        if (match) {
+          const start = line.from + text.length - match[0].length;
+          marks.push(Decoration.mark({ class: 'cm-trailing-space' }).range(start, line.to));
+        }
+        pos = line.to + 1;
+      }
+    }
+    return Decoration.set(marks, true);
+  }
+}, { decorations: v => v.decorations });
+
+window.toggleTrailingSpaces = function () {
+  trailingSpacesOn = !trailingSpacesOn;
+  document.getElementById('trailingSpaceToggle').classList.toggle('active', trailingSpacesOn);
+  view.dispatch({});
+  saveState();
+};
+
 // ─── Build the editor ─────────────────────────────────────────────────────────
 
 const host = document.getElementById('cm-host');
@@ -571,6 +606,7 @@ const view = new EditorView({
     depthPlugin,
     selectedTextPlugin,
     searchMatchPlugin,
+    trailingSpacePlugin,
     EditorView.updateListener.of(update => {
       if (update.docChanged) {
         updateCounts(update.state.doc.toString());
@@ -822,6 +858,7 @@ function saveState() {
     localStorage.setItem('fmtTextify_highlight', highlightOn ? 'on' : 'off');
     localStorage.setItem('fmtTextify_curlyFormat', curlyFormatOn ? 'on' : 'off');
     localStorage.setItem('fmtTextify_fontSize', `${editorFontSize}px`);
+    localStorage.setItem('fmtTextify_trailingSpaces', trailingSpacesOn ? 'on' : 'off');
   } catch (_) {}
 }
 
@@ -846,6 +883,10 @@ function loadState() {
     highlightOn = savedHighlight !== 'off';
     document.body.classList.toggle('no-highlight', !highlightOn);
     document.getElementById('highlightToggle').classList.toggle('active', highlightOn);
+    view.dispatch({});
+    const savedTrailingSpaces = localStorage.getItem('fmtTextify_trailingSpaces');
+    trailingSpacesOn = savedTrailingSpaces === 'on';
+    document.getElementById('trailingSpaceToggle').classList.toggle('active', trailingSpacesOn);
     view.dispatch({});
     const savedText = localStorage.getItem('fmtTextify_text');
     if (savedText) {

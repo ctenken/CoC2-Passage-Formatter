@@ -285,6 +285,13 @@
     flex-direction: column;
   }
 
+  .cm-trailing-space,
+  body .cm-editor .cm-content .cm-trailing-space,
+  body .cm-editor .cm-content .cm-trailing-space *,
+  body .cm-editor .cm-content [class*="bd"].cm-trailing-space {
+    background: #ff2020 !important;
+  }
+
   /* Override CM6 defaults to match our design */
   .cm-editor {
     flex: 1;
@@ -687,6 +694,10 @@
       <button id="highlightToggle" class="active" onclick="toggleHighlight()" title="Toggle bracket depth highlighting">
         <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Highlight
+      </button>
+      <button id="trailingSpaceToggle" onclick="toggleTrailingSpaces()" title="Toggle trailing space highlighting">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 1 2-2v-4M9 21H5a2 2 0 0 0-2-2v-4m0 0h18"/></svg>
+        Trailing
       </button>
       <button id="searchToggle" onclick="toggleSearch()" title="Find and Replace (Ctrl+F)">
         <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
