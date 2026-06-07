@@ -1,29 +1,39 @@
 export { EditorState } from '@codemirror/state';
 
 export {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  drawSelection,
-  highlightActiveLine,
+  Decoration, drawSelection, EditorView, highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
   lineNumbers,
-  placeholder,
+  placeholder, ViewPlugin
 } from '@codemirror/view';
 
 export {
   defaultKeymap,
   history,
   historyKeymap,
-  indentWithTab,
+  indentWithTab
 } from '@codemirror/commands';
 
 export {
-  indentUnit,
+  indentUnit
 } from '@codemirror/language';
 
 export {
   lintGutter,
-  setDiagnostics,
+  setDiagnostics
 } from '@codemirror/lint';
+
+export {
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  getSearchQuery,
+  openSearchPanel,
+  replaceAll,
+  replaceNext, search,
+  searchKeymap, SearchQuery, selectMatches,
+  setSearchQuery
+} from '@codemirror/search';
+
+export { indentationMarkers } from '@replit/codemirror-indentation-markers';
